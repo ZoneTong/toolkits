@@ -16,7 +16,7 @@ import (
  *      Author: zhoutong@genomics.cn
  */
 func main() {
-	port := flag.String("p", "9999", "port")
+	port := flag.String("p", "12345", "port")
 	flag.Parse()
 	fmt.Printf("listen at :%v\n", *port)
 
@@ -40,7 +40,7 @@ func (h myHandler) ServeHTTP(response http.ResponseWriter, request *http.Request
 	fmt.Printf("body(len: %v): %v\n\n", len(buf), string(buf))
 
 	if strings.HasPrefix(request.URL.Path, "/fs") {
-		path := request.URL.Path[4:]
+		path := request.URL.Path[3:]
 		fmt.Printf("filepath: %v\n", path)
 		f, err := os.Open(path)
 		if err != nil {
