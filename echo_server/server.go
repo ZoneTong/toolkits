@@ -8,14 +8,25 @@ import (
 )
 
 var (
-	host    = flag.String("h", "0.0.0.0", "host ip")
-	port    = flag.Int("p", 12345, "port")
-	reverse = flag.Bool("r", true, "reverse")
-	udp     = flag.Bool("u", false, "udp or tcp")
+	host     = flag.String("h", "0.0.0.0", "host ip")
+	port     = flag.Int("p", 12345, "port")
+	reverse  = flag.Bool("r", true, "reverse")
+	udp      = flag.Bool("u", false, "udp or tcp")
+	noprint  = flag.Bool("z", false, "no print")
+	multiple = flag.Int("m", 1, "multiple times echo back")
+	max_size = 1 << 20
+
+	limit  = flag.Int("l", 1024, "limit")
+	parall chan bool
 )
 
 func main() {
 	flag.Parse()
+	parall = make(chan bool, *limit)
+	for i := 0; i < *limit; i++ {
+		parall <- true
+	}
+
 	if *udp {
 		listenUDP()
 	} else {
@@ -29,6 +40,7 @@ func listenUDP() {
 		log.Println(err)
 		return
 	}
+	fmt.Printf("listen at udp:%v:%v\n", *host, *port)
 
 	data := make([]byte, 1024)
 	for {
@@ -37,13 +49,23 @@ func listenUDP() {
 			log.Println(err)
 		}
 
-		log.Printf("<%s> %s\n", remoteAddr, data[:n])
-		var out_data = reverseData(data, n, *reverse)
-		_, err = listener.WriteToUDP(out_data, remoteAddr)
-		if err != nil {
-			log.Println(err)
+		if !*noprint {
+			log.Printf("<%s> %s\n", remoteAddr, data[:n])
 		}
+
+		<-parall
+		go echoUDP(listener, remoteAddr, data, n)
 	}
+}
+
+func echoUDP(listener *net.UDPConn, remoteAddr *net.UDPAddr, data []byte, n int) {
+	var out_data = multipleData(reverseData(data[:n], *reverse))
+	_, err := listener.WriteToUDP(out_data, remoteAddr)
+	if err != nil {
+		log.Println(err)
+	}
+
+	parall <- true
 }
 
 func listenTCP() {
@@ -53,6 +75,7 @@ func listenTCP() {
 		return
 	}
 	defer l.Close()
+	fmt.Printf("listen at tcp:%v:%v\n", *host, *port)
 
 	for {
 		conn, err := l.Accept()
@@ -68,9 +91,10 @@ func listenTCP() {
 func handle(conn net.Conn) {
 	defer conn.Close()
 
-	data := make([]byte, 1024)
+	data := make([]byte, max_size)
+
 	for {
-		// conn.SetDeadline(time.Now().Add(time.Second * 10))
+		<-parall
 		n, err := conn.Read(data)
 		// if err == io.EOF || io.e {
 		// 	break
@@ -80,16 +104,26 @@ func handle(conn net.Conn) {
 			break
 		}
 
-		fmt.Printf("<%s> %s\n", conn.RemoteAddr(), data[:n])
-		var out_data = reverseData(data, n, *reverse)
-		_, err = conn.Write(out_data)
-		if err != nil {
-			log.Println(err)
+		if !*noprint {
+			fmt.Printf("<%s>%s(parall: %v)\n", conn.RemoteAddr(), data[:n], *limit-len(parall))
 		}
+
+		go echoTCP(conn, data[:n])
 	}
 }
 
-func reverseData(data []byte, n int, reverse bool) (out []byte) {
+func echoTCP(conn net.Conn, data []byte) {
+	var out_data = multipleData(reverseData(data, *reverse))
+	_, err := conn.Write(out_data)
+	if err != nil {
+		log.Println(err)
+	}
+
+	parall <- true
+}
+
+func reverseData(data []byte, reverse bool) (out []byte) {
+	n := len(data)
 	if !reverse {
 		return data[:n]
 	}
@@ -102,6 +136,17 @@ func reverseData(data []byte, n int, reverse bool) (out []byte) {
 
 	for i := 0; i < n; i++ {
 		out[i] = data[n-1-i]
+	}
+	return
+}
+
+func multipleData(data []byte) (out []byte) {
+	if len(data) >= max_size {
+		return data[:max_size]
+	}
+
+	for i := 0; i < *multiple; i++ {
+		out = append(out, data...)
 	}
 	return
 }
