@@ -54,7 +54,7 @@ func main() {
 		}
 		select {
 		case <-ticker.C:
-			go ttl(conn)
+			go rtt(conn)
 		}
 	}
 
@@ -74,32 +74,32 @@ func stat() {
 	// group.Add(1)
 	// defer group.Done()
 
-	process := func(ttl time.Duration) {
+	process := func(rtt time.Duration) {
 		if *print {
-			fmt.Printf("ttl: %.3fms\n", ttl.Seconds()*1000)
+			fmt.Printf("rtt: %.3fms\n", rtt.Seconds()*1000)
 		}
 
 		recvd++
-		if ttl < min {
-			min = ttl
-		} else if ttl > max {
-			max = ttl
+		if rtt < min {
+			min = rtt
+		} else if rtt > max {
+			max = rtt
 		}
-		total_dur += ttl
+		total_dur += rtt
 	}
 	for {
 		select {
 		case <-done:
 			group.Wait()
 			close(ttlch)
-			for ttl := range ttlch {
-				process(ttl)
+			for rtt := range ttlch {
+				process(rtt)
 			}
-			fmt.Printf("ttl min/avg/max(Millisecond): %.3f/%.3f/%.3f, loss/total: %v/%v\n", min.Seconds()*1000, total_dur.Seconds()*1000/float64(cnt), max.Seconds()*1000, cnt-recvd, cnt)
+			fmt.Printf("rtt min/avg/max(Millisecond): %.3f/%.3f/%.3f, loss/total: %v/%v\n", min.Seconds()*1000, total_dur.Seconds()*1000/float64(cnt), max.Seconds()*1000, cnt-recvd, cnt)
 			summaryDone <- 1
 			return
-		case ttl := <-ttlch:
-			process(ttl)
+		case rtt := <-ttlch:
+			process(rtt)
 		}
 	}
 }
@@ -134,7 +134,7 @@ func dial(udp bool) (conn net.Conn, err error) {
 	return
 }
 
-func ttl(conn net.Conn) {
+func rtt(conn net.Conn) {
 	group.Add(1)
 	defer group.Done()
 	defer conn.Close()
@@ -160,17 +160,17 @@ func ttl(conn net.Conn) {
 
 		conn.SetReadDeadline(time.Now().Add(*timeout))
 		_, err = conn.Read(buf)
+		rtt := time.Since(since)
+		atomic.AddInt32(&cnt, 1)
 		if err != nil {
 			fmt.Println(err)
 			continue
 		}
-		ttl := time.Since(since)
 		// if *print {
 		// fmt.Printf("%s(len: %v)\n", string(buf[:n]), n)
 		// }
 
-		atomic.AddInt32(&cnt, 1)
-		ttlch <- ttl
+		ttlch <- rtt
 
 	}
 }
