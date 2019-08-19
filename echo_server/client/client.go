@@ -20,19 +20,20 @@ var (
 	word       = flag.String("w", "", "word")
 	wordlen    = flag.Int("l", 56, "word length")
 	print      = flag.Bool("v", false, "print")
-	to         = flag.Duration("t", 2*time.Second, "dial time out")
+	timeout    = flag.Duration("t", 2*time.Second, "dial time out")
 	concurrent = flag.Int("c", 8, "cocurrent")
 	interval   = flag.Duration("i", time.Second, "ping interval")
 
 	max_size = 1024
 	// parall   chan bool
 
-	done       = make(chan int)
-	ttlch      = make(chan time.Duration)
-	cnt, recvd int32
-	total_dur  time.Duration
-	min, max   = time.Minute, time.Duration(0)
-	group      sync.WaitGroup
+	done        = make(chan int)
+	ttlch       = make(chan time.Duration)
+	cnt, recvd  int32
+	total_dur   time.Duration
+	min, max    = time.Minute, time.Duration(0)
+	group       sync.WaitGroup
+	summaryDone = make(chan int)
 )
 
 func main() {
@@ -44,14 +45,20 @@ func main() {
 	// 	*word = string(genstring(*wordlen))
 	// }
 
+	ticker := time.NewTicker(*interval / time.Duration(*concurrent))
+
 	for i := 0; i < *concurrent; i++ {
 		conn, err := dial(*udp)
 		if err != nil {
 			return
 		}
-
-		go ttl(conn)
+		select {
+		case <-ticker.C:
+			go ttl(conn)
+		}
 	}
+
+	ticker.Stop()
 	go stat()
 
 	ch := make(chan os.Signal, 1)
@@ -60,15 +67,18 @@ func main() {
 	case <-ch:
 		close(done)
 	}
-	group.Wait()
-	fmt.Printf("ttl min/avg/max: %.3f/%.3f/%.3f, loss/total: %v/%v\n", min.Seconds()*1000, total_dur.Seconds()*1000/float64(cnt), max.Seconds()*1000, cnt-recvd, cnt)
+	<-summaryDone
 }
 
 func stat() {
-	group.Add(1)
-	defer group.Done()
+	// group.Add(1)
+	// defer group.Done()
 
 	process := func(ttl time.Duration) {
+		if *print {
+			fmt.Printf("ttl: %.3fms\n", ttl.Seconds()*1000)
+		}
+
 		recvd++
 		if ttl < min {
 			min = ttl
@@ -80,10 +90,13 @@ func stat() {
 	for {
 		select {
 		case <-done:
+			group.Wait()
 			close(ttlch)
 			for ttl := range ttlch {
 				process(ttl)
 			}
+			fmt.Printf("ttl min/avg/max(Millisecond): %.3f/%.3f/%.3f, loss/total: %v/%v\n", min.Seconds()*1000, total_dur.Seconds()*1000/float64(cnt), max.Seconds()*1000, cnt-recvd, cnt)
+			summaryDone <- 1
 			return
 		case ttl := <-ttlch:
 			process(ttl)
@@ -111,7 +124,7 @@ func dial(udp bool) (conn net.Conn, err error) {
 	if udp {
 		conn, err = net.DialUDP("udp", nil, &net.UDPAddr{IP: net.ParseIP(*host), Port: *port})
 	} else {
-		conn, err = net.DialTimeout("tcp", fmt.Sprintf("%v:%v", *host, *port), *to)
+		conn, err = net.DialTimeout("tcp", fmt.Sprintf("%v:%v", *host, *port), *timeout)
 	}
 
 	if err != nil {
@@ -145,16 +158,16 @@ func ttl(conn net.Conn) {
 			continue
 		}
 
-		conn.SetReadDeadline(time.Now().Add(*to))
-		n, err := conn.Read(buf)
+		conn.SetReadDeadline(time.Now().Add(*timeout))
+		_, err = conn.Read(buf)
 		if err != nil {
 			fmt.Println(err)
 			continue
 		}
 		ttl := time.Since(since)
-		if *print {
-			fmt.Printf("%s(len: %v)\n", string(buf[:n]), n)
-		}
+		// if *print {
+		// fmt.Printf("%s(len: %v)\n", string(buf[:n]), n)
+		// }
 
 		atomic.AddInt32(&cnt, 1)
 		ttlch <- ttl
