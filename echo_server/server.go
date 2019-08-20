@@ -4,7 +4,9 @@ import (
 	"flag"
 	"fmt"
 	"net"
+	"sync"
 	"sync/atomic"
+	"time"
 )
 
 var (
@@ -17,10 +19,16 @@ var (
 	step     = flag.Int("step", 0, "positive means shift left, negtive means shift right, when multiple is not -1/0/1")
 	// limit    = flag.Int("l", 1024, "limit")
 
-	max_size = 1024
+	maxPow   = flag.Uint("max", 0, "max_size = 2 ^ max")
+	max_size = 1 << 20
 	reverse  bool
 	// parall   chan bool
 	parallCount int32
+
+	pool = &sync.Pool{
+		New: func() interface{} {
+			return make([]byte, max_size)
+		}}
 )
 
 func main() {
@@ -28,6 +36,10 @@ func main() {
 	if *multiple < 0 {
 		*multiple = -*multiple
 		reverse = true
+	}
+
+	if *maxPow != 0 {
+		max_size = 1 << *maxPow
 	}
 
 	// parall = make(chan bool, *limit)
@@ -50,15 +62,15 @@ func listenUDP() {
 	}
 	fmt.Printf("listen at udp:%v:%v\n", *host, *port)
 
-	data := make([]byte, max_size)
 	for {
+		data := pool.Get().([]byte)
 		n, remoteAddr, err := listener.ReadFromUDP(data)
 		if err != nil {
 			fmt.Println(err)
 		}
 
 		// <-parall
-		go echoBack(data[:n], func(out []byte) (int, error) {
+		echoBack(data[:n], func(out []byte) (int, error) {
 			return listener.WriteToUDP(out, remoteAddr)
 		})
 
@@ -83,10 +95,14 @@ func echoBack(data []byte, f func([]byte) (int, error)) {
 	for i := 0; i < *multiple; i++ {
 		out_data = append(out_data[distance:], out_data[:distance]...)
 		// fmt.Println(string(out_data))
-		_, err := f(out_data)
-		if err != nil {
-			fmt.Println(err)
-			return
+		var out_len int
+		for out_len < len(out_data) {
+			n, err := f(out_data[out_len:])
+			if err != nil {
+				fmt.Println(err)
+				return
+			}
+			out_len += n
 		}
 	}
 }
@@ -114,9 +130,10 @@ func listenTCP() {
 func handle(conn net.Conn) {
 	defer conn.Close()
 
-	data := make([]byte, max_size)
 	for {
 		// <-parall
+		data := pool.Get().([]byte)
+		conn.SetReadDeadline(time.Now().Add(time.Second * 10))
 		n, err := conn.Read(data)
 		if err != nil {
 			fmt.Println(err)
@@ -127,7 +144,7 @@ func handle(conn net.Conn) {
 			fmt.Printf("<%s>%s(parall: %v)\n", conn.RemoteAddr(), data[:n], parallCount)
 		}
 
-		go echoBack(data[:n], func(out []byte) (int, error) {
+		echoBack(data[:n], func(out []byte) (int, error) {
 			return conn.Write(out)
 		})
 	}
