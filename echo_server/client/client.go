@@ -58,7 +58,12 @@ func main() {
 	for i := 0; i < *concurrent; i++ {
 		select {
 		case <-ticker.C:
-			go rtt()
+			conn, err := dial(*udp)
+			if err != nil {
+				return
+			}
+
+			go rtt(conn)
 		}
 	}
 
@@ -153,9 +158,10 @@ func dial(udp bool) (conn net.Conn, err error) {
 	return
 }
 
-func rtt() {
+func rtt(conn net.Conn) {
 	group.Add(1)
 	defer group.Done()
+	defer conn.Close()
 
 	tick := time.NewTicker(*interval)
 
@@ -167,11 +173,6 @@ func rtt() {
 		case <-tick.C:
 		case <-done:
 			return
-		}
-
-		conn, err := dial(*udp)
-		if err != nil {
-			break
 		}
 
 		in = append(in, genstring(*step)...)
@@ -201,7 +202,7 @@ func rtt() {
 			}
 		}
 
-		conn.Close()
+		// conn.Close()
 		if !reflect.DeepEqual(in[:n1], out[:n2]) {
 			fmt.Println(n1, n2, string(in[:n1]), ", ", string(out[:n2]))
 			break
