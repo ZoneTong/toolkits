@@ -10,8 +10,8 @@ import (
 )
 
 var (
-	host = flag.String("h", "0.0.0.0", "host ip")
-	port = flag.Int("p", 9999, "port")
+	iface = flag.String("I", "0.0.0.0", "net interface ip")
+	port  = flag.Int("p", 9999, "port")
 
 	udp      = flag.Bool("u", false, "udp or tcp")
 	print    = flag.Bool("v", false, "print")
@@ -55,12 +55,12 @@ func main() {
 }
 
 func listenUDP() {
-	listener, err := net.ListenUDP("udp", &net.UDPAddr{IP: net.ParseIP(*host), Port: *port})
+	listener, err := net.ListenUDP("udp", &net.UDPAddr{IP: net.ParseIP(*iface), Port: *port})
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
-	fmt.Printf("listen at udp:%v:%v\n", *host, *port)
+	fmt.Printf("listen at udp:%v:%v\n", *iface, *port)
 
 	for {
 		data := pool.Get().([]byte)
@@ -108,13 +108,13 @@ func echoBack(data []byte, f func([]byte) (int, error)) {
 }
 
 func listenTCP() {
-	l, err := net.ListenTCP("tcp", &net.TCPAddr{IP: net.ParseIP(*host), Port: *port})
+	l, err := net.ListenTCP("tcp", &net.TCPAddr{IP: net.ParseIP(*iface), Port: *port})
 	if err != nil {
 		fmt.Println("Error listening:", err)
 		return
 	}
 	defer l.Close()
-	fmt.Printf("listen at tcp:%v:%v\n", *host, *port)
+	fmt.Printf("listen at tcp:%v:%v\n", *iface, *port)
 
 	for {
 		conn, err := l.Accept()

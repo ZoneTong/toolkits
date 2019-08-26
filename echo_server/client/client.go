@@ -17,6 +17,7 @@ import (
 
 var (
 	host       = flag.String("h", "127.0.0.1", "host ip")
+	iface      = flag.String("I", "", "src net interface to dial")
 	port       = flag.Int("p", 9999, "port")
 	udp        = flag.Bool("u", false, "udp or tcp")
 	word       = flag.String("w", "", "word")
@@ -27,7 +28,6 @@ var (
 	interval   = flag.Duration("i", time.Second, "ping interval")
 	step       = flag.Int("step", 0, "word length grow by step")
 	ping       = flag.Bool("ping", false, "ping to get rtt")
-	netface    = flag.String("I", "", "interface to dial")
 	maxPow     = flag.Uint("max", 0, "max_size = 2 ^ max")
 	max_size   = 1 << 20
 	// parall   chan bool
@@ -99,7 +99,7 @@ func stat() {
 	// defer group.Done()
 
 	process := func(rtt time.Duration) {
-		if *ping {
+		if *ping && *print {
 			fmt.Printf("rtt: %.3fms\n", rtt.Seconds()*1000)
 		}
 
@@ -155,13 +155,13 @@ func dial(udp bool) (conn net.Conn, err error) {
 	if udp {
 		network = "udp"
 	}
-	if *netface == "" {
+	if *iface == "" {
 		conn, err = net.DialTimeout(network, fmt.Sprintf("%v:%v", *host, *port), *timeout)
 	} else {
 		switch network {
 		case "tcp":
 			var laddr, raddr *net.TCPAddr
-			laddr, err = net.ResolveTCPAddr(network, *netface+":0")
+			laddr, err = net.ResolveTCPAddr(network, *iface+":0")
 			if err != nil {
 				return
 			}
@@ -174,7 +174,7 @@ func dial(udp bool) (conn net.Conn, err error) {
 
 		case "udp":
 			var laddr, raddr *net.UDPAddr
-			laddr, err = net.ResolveUDPAddr(network, *netface+":0")
+			laddr, err = net.ResolveUDPAddr(network, *iface+":0")
 			if err != nil {
 				return
 			}
@@ -219,15 +219,18 @@ func rtt(conn net.Conn) {
 		conn.SetDeadline(time.Now().Add(*timeout))
 		since := time.Now()
 		n1, err := conn.Write(in)
+		atomic.AddInt32(&cnt, 1)
 		if err != nil {
 			fmt.Println(err)
+			if *ping {
+				continue
+			}
 			break
 		}
 
 		conn.SetReadDeadline(time.Now().Add(*timeout))
 		var n2, n int
 		var rtt time.Duration
-		atomic.AddInt32(&cnt, 1)
 
 		// LOOP:
 		for n1 > n2 {
@@ -243,6 +246,9 @@ func rtt(conn net.Conn) {
 		// conn.Close()
 		if !reflect.DeepEqual(in[:n1], out[:n2]) {
 			fmt.Println(n1, n2, string(in[:n1]), ", ", string(out[:n2]))
+			if *ping {
+				continue
+			}
 			break
 		}
 
