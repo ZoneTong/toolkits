@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"math/rand"
@@ -26,6 +27,7 @@ var (
 	interval   = flag.Duration("i", time.Second, "ping interval")
 	step       = flag.Int("step", 0, "word length grow by step")
 	ping       = flag.Bool("ping", false, "ping to get rtt")
+	netface    = flag.String("I", "", "interface to dial")
 	maxPow     = flag.Uint("max", 0, "max_size = 2 ^ max")
 	max_size   = 1 << 20
 	// parall   chan bool
@@ -38,6 +40,7 @@ var (
 	group       sync.WaitGroup
 	summaryDone = make(chan int)
 	midprint    = make(chan bool)
+	sysch       = make(chan os.Signal, 1)
 )
 
 func main() {
@@ -70,21 +73,23 @@ func main() {
 	ticker.Stop()
 	go stat()
 
-	ch := make(chan os.Signal, 1)
-	signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM, syscall.SIGUSR1)
+	signal.Notify(sysch, syscall.SIGINT, syscall.SIGTERM, syscall.SIGUSR1, syscall.SIGUSR2)
 
 LISTEN:
 	select {
-	case sig := <-ch:
+	case sig := <-sysch:
 		switch sig {
 		case syscall.SIGUSR1:
 			midprint <- true
 			goto LISTEN
+
 		default:
 			close(done)
+			for range sysch {
+			}
 		}
-	case <-done:
-	case <-summaryDone:
+		// case <-done:
+		// case <-summaryDone:
 	}
 	<-summaryDone
 }
@@ -112,6 +117,7 @@ func stat() {
 			go func() {
 				group.Wait()
 				close(ttlch)
+				close(sysch)
 			}()
 
 			for rtt := range ttlch {
@@ -145,10 +151,42 @@ func genstring(l int) (bs []byte) {
 }
 
 func dial(udp bool) (conn net.Conn, err error) {
+	var network = "tcp"
 	if udp {
-		conn, err = net.DialUDP("udp", nil, &net.UDPAddr{IP: net.ParseIP(*host), Port: *port})
+		network = "udp"
+	}
+	if *netface == "" {
+		conn, err = net.DialTimeout(network, fmt.Sprintf("%v:%v", *host, *port), *timeout)
 	} else {
-		conn, err = net.DialTimeout("tcp", fmt.Sprintf("%v:%v", *host, *port), *timeout)
+		switch network {
+		case "tcp":
+			var laddr, raddr *net.TCPAddr
+			laddr, err = net.ResolveTCPAddr(network, *netface+":0")
+			if err != nil {
+				return
+			}
+			raddr, err = net.ResolveTCPAddr(network, fmt.Sprintf("%v:%v", *host, *port))
+			if err != nil {
+				return
+			}
+
+			conn, err = net.DialTCP(network, laddr, raddr)
+
+		case "udp":
+			var laddr, raddr *net.UDPAddr
+			laddr, err = net.ResolveUDPAddr(network, *netface+":0")
+			if err != nil {
+				return
+			}
+			raddr, err = net.ResolveUDPAddr(network, fmt.Sprintf("%v:%v", *host, *port))
+			if err != nil {
+				return
+			}
+
+			conn, err = net.DialUDP(network, laddr, raddr)
+		default:
+			err = errors.New(network + " is not supported")
+		}
 	}
 
 	if err != nil {
@@ -186,7 +224,7 @@ func rtt(conn net.Conn) {
 			break
 		}
 
-		// conn.SetReadDeadline(time.Now().Add(*timeout))
+		conn.SetReadDeadline(time.Now().Add(*timeout))
 		var n2, n int
 		var rtt time.Duration
 		atomic.AddInt32(&cnt, 1)
@@ -215,5 +253,6 @@ func rtt(conn net.Conn) {
 		ttlch <- rtt
 
 	}
-	close(done)
+	// close(done)
+	sysch <- syscall.SIGUSR2
 }
