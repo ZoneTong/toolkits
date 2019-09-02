@@ -14,7 +14,7 @@ import (
 
 const (
 	FS_PREFIX     = "/fs"
-	STABLE_PREFIX = "/const"
+	STABLE_PREFIX = "/us" // uniform speed
 	MB            = 1 << 20
 )
 
@@ -97,7 +97,7 @@ func StableSpeedWrite(response http.ResponseWriter, request *http.Request) {
 		speed = 10
 	}
 	block_size := int(speed * MB)
-	slient := querys.Get("slient") == "true"
+	slient := querys.Get("silent") == "true"
 	nocycle := querys.Get("cycle") != "true"
 
 	ticker := time.NewTicker(interval)
