@@ -21,15 +21,15 @@
 
 ### echo_server
 
-机器192.168.0.109命令:  echo_server/echo_server
-然后任意机器测试命令:   echo_server/cmd.sh xnc 2 1 192.168.0.109 12345
+- 机器192.168.0.109命令:  echo_server/echo_server
+- 然后任意机器测试命令:   echo_server/cmd.sh xnc 2 1 192.168.0.109 12345
 
 ### rw_server
 
-服务器 182.242.45.69百倍返回: rw_server -u -m 100 -z
-客户端 (1.txt中是比较长的字符串) : cat /tmp/1.txt | rw_client -u -h 182.242.45.69 -z
+- 服务器 182.242.45.69百倍返回: rw_server -u -m 100 -z
+- 客户端 (1.txt中是比较长的字符串) : cat /tmp/1.txt | rw_client -u -h 182.242.45.69 -z
 
 ### uniform_client
 
-服务器 echo_server -p 39999 -m 0
-客户端 uniform_client -p 39999 -f /tmp/linux.tgz -speed=1 -c 1
+- 服务器 echo_server -p 39999 -m 0
+- 客户端 uniform_client -p 39999 -f /tmp/linux.tgz -speed=1 -c 1
