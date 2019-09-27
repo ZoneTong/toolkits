@@ -23,11 +23,11 @@ const (
  *      Author: zhoutong@genomics.cn
  */
 func main() {
-	port := flag.String("p", "12345", "port")
+	port := flag.Int("p", 9999, "port")
 	flag.Parse()
 	fmt.Printf("listen at :%v\n", *port)
 
-	log.Println(http.ListenAndServe(":"+*port, &myHandler{}))
+	log.Println(http.ListenAndServe(":"+fmt.Sprint(*port), &myHandler{}))
 }
 
 type myHandler struct {

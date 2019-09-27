@@ -15,9 +15,11 @@ var (
 
 	udp      = flag.Bool("u", false, "udp or tcp")
 	print    = flag.Bool("v", false, "print")
+	detail   = flag.Bool("detail", false, "print detail")
 	multiple = flag.Int("m", 1, "multiple times echo back, negtive means to reverse")
-	step     = flag.Int("step", 0, "positive means shift left, negtive means shift right, when multiple is not -1/0/1")
+	step     = flag.Int("step", 0, "positive means shift left, negtive means shift right")
 	// limit    = flag.Int("l", 1024, "limit")
+	timeout = flag.Duration("to", 5*time.Second, "read time out")
 
 	maxPow   = flag.Uint("max", 0, "max_size = 2 ^ max")
 	max_size = 1 << 20
@@ -133,7 +135,7 @@ func handle(conn net.Conn) {
 	for {
 		// <-parall
 		data := pool.Get().([]byte)
-		conn.SetReadDeadline(time.Now().Add(time.Second * 10))
+		// conn.SetReadDeadline(time.Now().Add(*timeout))
 		n, err := conn.Read(data)
 		if err != nil {
 			fmt.Println(err)
@@ -141,7 +143,10 @@ func handle(conn net.Conn) {
 		}
 
 		if *print {
-			fmt.Printf("<%s>%s(parall: %v)\n", conn.RemoteAddr(), data[:n], parallCount)
+			fmt.Printf("<%s>parall: %v\n", conn.RemoteAddr(), parallCount)
+			if *detail {
+				fmt.Printf("%s\n", data[:n])
+			}
 		}
 
 		echoBack(data[:n], func(out []byte) (int, error) {

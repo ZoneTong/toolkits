@@ -4,6 +4,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"log"
 	"math/rand"
 	"net"
 	"os"
@@ -45,9 +46,9 @@ var (
 
 func main() {
 	rand.Seed(time.Now().Unix())
-	// fmt.SetFlags(fmt.LstdFlags | fmt.Lshortfile)
+	log.SetFlags(log.LstdFlags | log.Lshortfile)
 	flag.Parse()
-	fmt.Println("pid:", os.Getpid())
+	log.Println("pid:", os.Getpid())
 	if *maxPow != 0 {
 		max_size = 1 << *maxPow
 	}
@@ -100,7 +101,7 @@ func stat() {
 
 	process := func(rtt time.Duration) {
 		if *ping && *print {
-			fmt.Printf("rtt: %.3fms\n", rtt.Seconds()*1000)
+			log.Printf("rtt: %.3fms\n", rtt.Seconds()*1000)
 		}
 
 		recvd++
@@ -123,13 +124,13 @@ func stat() {
 			for rtt := range ttlch {
 				process(rtt)
 			}
-			fmt.Printf("rtt min/avg/max(Millisecond): %.3f/%.3f/%.3f, loss/total: %v/%v\n", min.Seconds()*1000, total_dur.Seconds()*1000/float64(cnt), max.Seconds()*1000, cnt-recvd, cnt)
+			log.Printf("rtt min/avg/max(Millisecond): %.3f/%.3f/%.3f, loss/total: %v/%v\n", min.Seconds()*1000, total_dur.Seconds()*1000/float64(cnt), max.Seconds()*1000, cnt-recvd, cnt)
 			summaryDone <- 1
 			return
 		case rtt := <-ttlch:
 			process(rtt)
 		case <-midprint:
-			fmt.Printf("rtt min/avg/max(Millisecond): %.3f/%.3f/%.3f, loss/total: %v/%v\n", min.Seconds()*1000, total_dur.Seconds()*1000/float64(cnt), max.Seconds()*1000, cnt-recvd-int32(len(ttlch)), cnt)
+			log.Printf("rtt min/avg/max(Millisecond): %.3f/%.3f/%.3f, loss/total: %v/%v\n", min.Seconds()*1000, total_dur.Seconds()*1000/float64(cnt), max.Seconds()*1000, cnt-recvd-int32(len(ttlch)), cnt)
 		}
 	}
 }
@@ -163,11 +164,11 @@ func dial(udp bool) (conn net.Conn, err error) {
 			var laddr, raddr *net.TCPAddr
 			laddr, err = net.ResolveTCPAddr(network, *iface+":0")
 			if err != nil {
-				return
+				goto END
 			}
 			raddr, err = net.ResolveTCPAddr(network, fmt.Sprintf("%v:%v", *host, *port))
 			if err != nil {
-				return
+				goto END
 			}
 
 			conn, err = net.DialTCP(network, laddr, raddr)
@@ -176,21 +177,23 @@ func dial(udp bool) (conn net.Conn, err error) {
 			var laddr, raddr *net.UDPAddr
 			laddr, err = net.ResolveUDPAddr(network, *iface+":0")
 			if err != nil {
-				return
+				goto END
 			}
 			raddr, err = net.ResolveUDPAddr(network, fmt.Sprintf("%v:%v", *host, *port))
 			if err != nil {
-				return
+				goto END
 			}
 
 			conn, err = net.DialUDP(network, laddr, raddr)
+
 		default:
 			err = errors.New(network + " is not supported")
 		}
 	}
 
+END:
 	if err != nil {
-		fmt.Println("dial error:", err)
+		log.Println("dial error:", err)
 		return
 	}
 	return
@@ -221,7 +224,7 @@ func rtt(conn net.Conn) {
 		n1, err := conn.Write(in)
 		atomic.AddInt32(&cnt, 1)
 		if err != nil {
-			fmt.Println(err)
+			log.Println(err)
 			if *ping {
 				continue
 			}
@@ -238,14 +241,14 @@ func rtt(conn net.Conn) {
 			rtt = time.Since(since)
 			n2 += n
 			if err != nil {
-				fmt.Println(n, err)
+				log.Println(n, err)
 				break
 			}
 		}
 
 		// conn.Close()
 		if !reflect.DeepEqual(in[:n1], out[:n2]) {
-			fmt.Println(n1, n2, string(in[:n1]), ", ", string(out[:n2]))
+			log.Println(n1, n2, string(in[:n1]), ", ", string(out[:n2]))
 			if *ping {
 				continue
 			}
@@ -253,7 +256,9 @@ func rtt(conn net.Conn) {
 		}
 
 		if *print {
-			fmt.Printf("%s(in len: %v), %s(out len: %v)\n", string(in[:n1]), n1, string(out[:n2]), n2)
+			log.Printf("%s(in len: %v), %s(out len: %v)\n", string(in[:n1]), n1, string(out[:n2]), n2)
+
+			log.Printf("%s<-%s\n", conn.LocalAddr(), conn.RemoteAddr())
 		}
 
 		ttlch <- rtt
