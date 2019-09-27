@@ -1,14 +1,20 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"io/ioutil"
 	"log"
+	"net"
 	"net/http"
 	"os"
+	"os/exec"
+	"os/signal"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 )
 
@@ -18,26 +24,52 @@ const (
 	MB            = 1 << 20
 )
 
+var (
+	server   *http.Server
+	listener net.Listener
+)
+
 /** Descrption: 测试源端口与目的端口是否一致
  *  CreateTime: 2018/11/05 20:53:03
  *      Author: zhoutong@genomics.cn
  */
 func main() {
 	port := flag.Int("p", 9999, "port")
+	graceful := flag.Bool("update", false, "graceful update")
 	flag.Parse()
-	fmt.Printf("listen at :%v\n", *port)
 
-	log.Println(http.ListenAndServe(":"+fmt.Sprint(*port), &myHandler{}))
-}
+	var err error
+	if *graceful {
+		f := os.NewFile(3, "")
+		listener, err = net.FileListener(f)
+		if err != nil {
+			log.Fatal(err)
+		}
+		f.Close()
+	} else {
+		addr := ":" + fmt.Sprint(*port)
+		listener, err = net.Listen("tcp", addr)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
+	log.Printf("listen at %v\n", listener.Addr())
 
-type myHandler struct {
+	server = &http.Server{Handler: http.HandlerFunc(myHandle)}
+	go func() {
+		if err := server.Serve(listener); err != nil {
+			log.Println(err)
+		}
+	}()
+
+	signalHandler()
 }
 
 /** Descrption:
  *  CreateTime: 2018/11/05 20:56:55
  *      Author: zhoutong@genomics.cn
  */
-func (h myHandler) ServeHTTP(response http.ResponseWriter, request *http.Request) {
+func myHandle(response http.ResponseWriter, request *http.Request) {
 	defer func(start time.Time) {
 		fmt.Printf("request time: %v\n\n", time.Since(start))
 	}(time.Now())
@@ -155,4 +187,57 @@ func StableSpeedWrite(response http.ResponseWriter, request *http.Request) {
 			fmt.Printf("%.3fMBps, dur: %v\n", float64(sent)/(float64(dur.Nanoseconds())/1000), dur)
 		}
 	}
+}
+
+func signalHandler() {
+	ch := make(chan os.Signal, 1)
+	signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM, syscall.SIGUSR2)
+	for {
+		sig := <-ch
+		log.Printf("signal: %v", sig)
+
+		// timeout context for shutdown
+		ctx, _ := context.WithTimeout(context.Background(), 100*time.Second)
+		switch sig {
+		case syscall.SIGINT, syscall.SIGTERM:
+			// stop
+			log.Printf("stop")
+			signal.Stop(ch)
+			server.Shutdown(ctx)
+			log.Printf("graceful shutdown")
+			return
+
+		case syscall.SIGUSR2:
+			// reload
+			log.Printf("reload")
+			err := reload()
+			if err != nil {
+				log.Fatalf("graceful restart error: %v", err)
+				continue
+			}
+			server.Shutdown(ctx)
+			log.Printf("graceful reload")
+			return
+		}
+	}
+}
+
+func reload() error {
+	tl, ok := listener.(*net.TCPListener)
+	if !ok {
+		return errors.New("listener is not tcp listener")
+	}
+
+	f, err := tl.File()
+	if err != nil {
+		return err
+	}
+
+	args := []string{"-update"}
+	cmd := exec.Command(os.Args[0], args...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	// put socket FD at the first entry
+	cmd.ExtraFiles = []*os.File{f}
+	return cmd.Start()
 }
