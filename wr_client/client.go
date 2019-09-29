@@ -107,6 +107,7 @@ func readLoop(conn net.Conn, dataque chan<- []byte) {
 			time.Sleep(*interval)
 		}
 
+		pool.Put(buf)
 		if err != nil {
 			fmt.Println(n, err)
 			return

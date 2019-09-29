@@ -197,7 +197,8 @@ func signalHandler() {
 		log.Printf("signal: %v", sig)
 
 		// timeout context for shutdown
-		ctx, _ := context.WithTimeout(context.Background(), 100*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), 100*time.Second)
+		defer cancel()
 		switch sig {
 		case syscall.SIGINT, syscall.SIGTERM:
 			// stop

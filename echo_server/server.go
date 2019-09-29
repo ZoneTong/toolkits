@@ -79,7 +79,7 @@ func listenUDP() {
 		if *print {
 			fmt.Printf("<%s>%s(para: %v)\n", remoteAddr, data[:n], parallCount)
 		}
-
+		pool.Put(data)
 	}
 }
 
