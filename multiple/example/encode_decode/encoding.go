@@ -47,34 +47,29 @@ func (c *MultipleEncoder) Encode(m []byte) []byte {
 }
 
 type MultipleDecoder struct {
-	m               []byte
 	recved_sequence uint32
 }
 
 func (c *MultipleDecoder) Decode(m []byte) []byte {
 	// return m
 
-	c.m = append(c.m, m...)
-	if len(c.m) < int(HEADER_LEN) {
+	if len(m) < int(HEADER_LEN) {
 		return nil
 	}
 
-	header := make([]byte, HEADER_LEN)
-	copy(header, c.m)
+	header := m[:HEADER_LEN]
 	if header[0] != 0 || string(header[1:1+len(PROTOCOL)]) != PROTOCOL {
-		c.m = nil
 		return nil
 	}
 
 	seq := serial.BytesToUint32(header[HEADER_LEN-8 : HEADER_LEN-4])
 	length := serial.BytesToUint32(header[HEADER_LEN-4:])
 	size := (HEADER_LEN) + (length)
-	if size > uint32(len(c.m)) {
+	if size > uint32(len(m)) {
 		return nil
 	}
 
-	newbuf := c.m[:size]
-	c.m = c.m[size:]
+	newbuf := m[:size]
 	if seq <= c.recved_sequence {
 		return nil
 	}

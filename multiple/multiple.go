@@ -76,27 +76,16 @@ func MergedWriter(writer io.Writer, n uint32, done <-chan bool, filters ...Filte
 
 	ch := make(chan []byte)
 	recvfunc := func(recv io.Reader) {
-		var m []byte
 		var err error
-		var n int
-
 		for {
-			var mb = pool.Get().([]byte)
-			n, err = recv.Read(mb)
+			var n int
+			var m = pool.Get().([]byte)
+			n, err = recv.Read(m)
 			if err != nil {
 				return
 			}
-			m = append(m, mb[:n]...)
-			pool.Put(mb)
 
-			// TODO: check data format integrity
-			for _, handle := range filters {
-				m = handle(m)
-			}
-
-			if len(m) != 0 {
-				ch <- m
-			}
+			ch <- m[:n]
 		}
 	}
 
@@ -118,7 +107,18 @@ func MergedWriter(writer io.Writer, n uint32, done <-chan bool, filters ...Filte
 				return
 
 			case m := <-ch:
+
+				// TODO: check data format integrity
+				for _, handle := range filters {
+					m = handle(m)
+				}
+
+				if len(m) == 0 {
+					continue
+				}
+
 				_, err = writer.Write(m)
+				pool.Put(m)
 				if err != nil {
 					return
 				}
