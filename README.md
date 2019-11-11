@@ -10,6 +10,7 @@
 | echo_server    | 回声服务   | 接收tcp或udp数据, 立即返回相同或倒置或翻倍的字符串 |
 | wr_client      | 写读客户端 | 配合翻倍服务,可测试实际读写tcp/udp的最大带宽       |
 | uniform_client | 匀速客户端 | 匀速推送,可用echo_server配合接收                   |
+| multiple       | 读写分身器 | 将reader/writer分身,可用于广播协议/去重            |
 
 ## 使用示例
 
@@ -33,3 +34,7 @@
 
 - 服务器 echo_server -p 39999 -m 0
 - 客户端 uniform_client -p 39999 -f /tmp/linux.tgz -speed=1 -c 1
+
+### multiple
+
+- cd multiple/example/stdin_stdout && echo '12345' |go run .
