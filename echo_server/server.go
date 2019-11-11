@@ -19,7 +19,10 @@ var (
 	multiple = flag.Int("m", 1, "multiple times echo back, negtive means to reverse")
 	step     = flag.Int("step", 0, "positive means shift left, negtive means shift right")
 	// limit    = flag.Int("l", 1024, "limit")
-	timeout = flag.Duration("to", 5*time.Second, "read time out")
+	timeout       = flag.Duration("to", 5*time.Second, "read time out")
+	keepalive     = flag.Bool("ka", false, "keep alive")
+	aliveinterval = flag.Duration("ai", 5*time.Second, "keep alive interval")
+	plinenumber   = flag.Bool("n", false, "print received count")
 
 	maxPow   = flag.Uint("max", 0, "max_size = 2 ^ max")
 	max_size = 1 << 20
@@ -31,6 +34,9 @@ var (
 		New: func() interface{} {
 			return make([]byte, max_size)
 		}}
+
+	spid       = fmt.Sprintf("pong")
+	linenumber uint32
 )
 
 func main() {
@@ -71,13 +77,36 @@ func listenUDP() {
 			fmt.Println(err)
 		}
 
+		if *keepalive {
+			go func() {
+				ticker := time.NewTicker(*aliveinterval)
+				for {
+					select {
+					case <-ticker.C:
+						listener.WriteToUDP([]byte(spid), remoteAddr)
+					}
+				}
+			}()
+		}
+
 		// <-parall
 		echoBack(data[:n], func(out []byte) (int, error) {
 			return listener.WriteToUDP(out, remoteAddr)
 		})
 
 		if *print {
-			fmt.Printf("<%s>%s(para: %v)\n", remoteAddr, data[:n], parallCount)
+			var s string
+			if n < 10 || *detail {
+				s = string(data[:n])
+			} else {
+				s = string(data[:10])
+			}
+			s = fmt.Sprintf("<%s>%s(para: %v)", remoteAddr, s, parallCount)
+			if *plinenumber {
+				atomic.AddUint32(&linenumber, 1)
+				s = fmt.Sprintf("%v %v", linenumber, s)
+			}
+			fmt.Println(s)
 		}
 		pool.Put(data)
 	}
@@ -132,6 +161,18 @@ func listenTCP() {
 func handle(conn net.Conn) {
 	defer conn.Close()
 
+	if *keepalive {
+		go func() {
+			ticker := time.NewTicker(*aliveinterval)
+			for {
+				select {
+				case <-ticker.C:
+					conn.Write([]byte(spid))
+				}
+			}
+		}()
+	}
+
 	for {
 		// <-parall
 		data := pool.Get().([]byte)
@@ -143,7 +184,12 @@ func handle(conn net.Conn) {
 		}
 
 		if *print {
-			fmt.Printf("<%s>parall: %v\n", conn.RemoteAddr(), parallCount)
+			s := fmt.Sprintf("<%s>parall: %v\n", conn.RemoteAddr(), parallCount)
+			if *plinenumber {
+				atomic.AddUint32(&linenumber, 1)
+				s = fmt.Sprintf("%v %v", linenumber, s)
+			}
+			fmt.Println(s)
 			if *detail {
 				fmt.Printf("%s\n", data[:n])
 			}
