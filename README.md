@@ -11,6 +11,7 @@
 | wr_client      | 写读客户端 | 配合翻倍服务,可测试实际读写tcp/udp的最大带宽       |
 | uniform_client | 匀速客户端 | 匀速推送,可用echo_server配合接收                   |
 | multiple       | 读写分身器 | 将reader/writer分身,可用于广播协议/去重            |
+| transfer       | 网络包转发 | udp包转发程序                                      |
 
 ## 使用示例
 
@@ -22,19 +23,29 @@
 
 ### echo_server
 
-- 机器192.168.0.109命令:  echo_server/echo_server
-- 然后任意机器测试命令:   echo_server/cmd.sh xnc 2 1 192.168.0.109 12345
+- 机器192.168.0.109命令:  ```echo_server/echo_server```
+- 然后任意机器测试命令:   ```echo_server/cmd.sh xnc 2 1 192.168.0.109 12345```
 
 ### wr_client
 
-- 服务器 182.242.45.69百倍返回: echo_server -m 100
-- 客户端 (1.txt中是比较长的字符串) : cat /tmp/1.txt | wr_client --cycle -buf 3000
+- 服务器 182.242.45.69百倍返回: ```echo_server -m 100```
+- 客户端 (1.txt中是比较长的字符串) : ```cat /tmp/1.txt | wr_client --cycle -buf 3000```
 
 ### uniform_client
 
-- 服务器 echo_server -p 39999 -m 0
-- 客户端 uniform_client -p 39999 -f /tmp/linux.tgz -speed=1 -c 1
+- 服务器 ```echo_server -p 39999 -m 0```
+- 客户端 ```uniform_client -p 39999 -f /tmp/linux.tgz -speed=1 -c 1```
 
 ### multiple
 
-- cd multiple/example/stdin_stdout && echo '12345' |go run .
+```bash
+cd multiple/example/stdin_stdout && echo '12345' |go run .
+```
+
+### transfer
+
+监听本机端口10555,并转发给58.222.55.8:10555
+
+```bash
+./transfer -l :10555 -d 58.222.55.8:10555 > /tmp/transfer.log 2>&1 &
+```
