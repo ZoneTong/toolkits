@@ -192,6 +192,9 @@ func handle(conn net.Conn) {
 			fmt.Println(s)
 			if *detail {
 				fmt.Printf("%s\n", data[:n])
+				// for i := range data[:n] {
+				// 	fmt.Printf("%d %q\n", i, data[i])
+				// }
 			}
 		}
 

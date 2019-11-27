@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"syscall"
@@ -27,6 +28,7 @@ const (
 var (
 	server   *http.Server
 	listener net.Listener
+	rootpath = flag.String("root", "/", "filesystem root path")
 )
 
 /** Descrption: 测试源端口与目的端口是否一致
@@ -96,6 +98,7 @@ func myHandle(response http.ResponseWriter, request *http.Request) {
 func filesystem(response http.ResponseWriter, request *http.Request) {
 	path := request.URL.Path[len(FS_PREFIX):]
 	// fmt.Printf("filepath: %v\n", path)
+	path = filepath.Join(*rootpath, path)
 	f, err := os.Open(path)
 	if err != nil {
 		fmt.Println(err)
