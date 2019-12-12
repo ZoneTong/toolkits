@@ -1,4 +1,4 @@
-package main
+package multiple
 
 import (
 	"bytes"
@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	PROTOCOL   = "newudp"
+	PROTOCOL   = "ucp"
 	HEADER_LEN = uint32(1 + len(PROTOCOL) + 4 + 4)
 )
 

@@ -17,11 +17,11 @@ func main() {
 
 	// 1. sender
 	done := make(chan bool)
-	var encoder MultipleEncoder
+	var encoder multiple.MultipleEncoder
 	rs := multiple.CopiedReader(os.Stdin, n, done, encoder.Encode)
 
 	// 2. receiver
-	var decoder MultipleDecoder
+	var decoder multiple.MultipleDecoder
 	ws := multiple.MergedWriter(os.Stdout, n, done, decoder.Decode)
 
 	// 3. transfer
