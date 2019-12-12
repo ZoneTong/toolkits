@@ -2,8 +2,8 @@ package main
 
 import (
 	"flag"
-	"fmt"
 	"io/ioutil"
+	"log"
 	"math"
 	"math/rand"
 	"net"
@@ -33,7 +33,7 @@ var (
 	sysch       = make(chan os.Signal, 1)
 
 	ttlch           = make(chan WroteInfo)
-	speed           = flag.Float64("speed", 10, "uniform speed")
+	speed           = flag.Float64("block", 10, "block size, assure uniform speed")
 	report_interval = flag.Duration("report", time.Second*5, "report interval")
 	file            = flag.String("f", "", "file path")
 )
@@ -49,9 +49,9 @@ type WroteInfo struct {
 
 func main() {
 	rand.Seed(time.Now().Unix())
-	// fmt.SetFlags(fmt.LstdFlags | fmt.Lshortfile)
+	log.SetFlags(log.LstdFlags | log.Lshortfile)
 	flag.Parse()
-	fmt.Println("pid:", os.Getpid())
+	log.Println("pid:", os.Getpid())
 
 	ticker := time.NewTicker(*interval / time.Duration(*concurrent))
 	for i := 0; i < *concurrent; i++ {
@@ -97,7 +97,7 @@ func stat() {
 	process := func(info WroteInfo) {
 		writeSpeed := float64(info.size) / (float64(info.dur.Nanoseconds()) / 1000)
 		if *print {
-			fmt.Printf("writeSpeed: %.3fMBps\n", writeSpeed)
+			log.Printf("writeSpeed: %.3fMBps\n", writeSpeed)
 		}
 
 		if math.Max(min, writeSpeed) == min {
@@ -120,14 +120,14 @@ func stat() {
 			for writeSpeed := range ttlch {
 				process(writeSpeed)
 			}
-			fmt.Printf("writeSpeed min/avg/max(MBps): %.3f/%.3f/%.3f\n", min, float64(total.size)/(float64(total.dur.Nanoseconds())/1000), max)
+			log.Printf("writeSpeed min/avg/max(MBps): %.3f/%.3f/%.3f\n", min, float64(total.size)/(float64(total.dur.Nanoseconds())/1000), max)
 			summaryDone <- 1
 			return
 
 		case writeSpeed := <-ttlch:
 			process(writeSpeed)
 		case <-midprint:
-			fmt.Printf("writeSpeed min/avg/max(MBps): %.3f/%.3f/%.3f\n", min, float64(total.size)/(float64(total.dur.Nanoseconds())/1000), max)
+			log.Printf("writeSpeed min/avg/max(MBps): %.3f/%.3f/%.3f\n", min, float64(total.size)/(float64(total.dur.Nanoseconds())/1000), max)
 		}
 	}
 }
@@ -139,7 +139,7 @@ func writeSpeed(conn net.Conn) {
 
 	buf, err := ioutil.ReadFile(*file)
 	if err != nil {
-		fmt.Println(err)
+		log.Println(err)
 		return
 	}
 
@@ -174,7 +174,7 @@ func writeSpeed(conn net.Conn) {
 			for remain > 0 {
 				n, err := conn.Write(block)
 				if err != nil {
-					fmt.Println(err)
+					log.Println(err)
 					return
 				}
 				remain -= n

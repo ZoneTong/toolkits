@@ -12,6 +12,7 @@ var (
 	// src        = flag.String("s", "192.168.0.109:10555", "source address")
 	network    = flag.String("net", "udp", "network")
 	packetsize = flag.Int("size", 2048, "packet size")
+	print      = flag.Bool("v", false, "print")
 )
 
 func main() {
@@ -41,9 +42,13 @@ func main() {
 		for {
 			n, err := dst_conn.Read(buf2)
 			if n != 0 {
-				log.Println("recv from dest", *dst, n)
+				if *print {
+					log.Println("recv from dest", *dst, n)
+				}
 				m, werr := listen_conn.WriteTo(buf2[:n], src_addr)
-				log.Println("send to src", src_addr, m)
+				if *print {
+					log.Println("send to src", src_addr, m)
+				}
 				total += m
 				if m != n || werr != nil {
 					log.Println("listen_conn.WriteTo", n, m, werr, total)
@@ -63,10 +68,14 @@ func main() {
 		var n int
 		var err error
 		n, src_addr, err = listen_conn.ReadFrom(buf)
-		log.Println("recv from src", src_addr, n)
+		if *print {
+			log.Println("recv from src", src_addr, n)
+		}
 		if n != 0 {
 			m, werr := dst_conn.Write(buf[:n])
-			log.Println("send to dst", *dst, m)
+			if *print {
+				log.Println("send to dst", *dst, m)
+			}
 			ltotal += m
 			if m != n || werr != nil {
 				log.Println("listen_conn.WriteTo", n, m, werr, ltotal)
