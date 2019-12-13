@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"math"
 	"net"
 	"sync/atomic"
 	"time"
@@ -125,41 +126,45 @@ func printSpeed() {
 	basef := float64(base / BITS)
 
 	ticker := time.NewTicker(time.Second)
-	var oldserver, oldclient, tmp uint64
+	var sold, cold uint64
 	var ccnt, scnt uint64
 	for {
 		select {
 		case <-ticker.C:
-			serverCount, clientCount := atomic.LoadUint64(&bytesFromServer), atomic.LoadUint64(&bytesFromClient)
-			if clientCount == oldclient && serverCount == oldserver {
+			cdiff, sdiff := calcDiff(&bytesFromClient, &ccnt, &cold), calcDiff(&bytesFromServer, &scnt, &sold)
+			if cdiff == 0 && sdiff == 0 {
 				continue
 			}
 
-			ccnt++
-			// if clientCount < oldclient {
-			// clientCount += (math.MaxUint64 - oldclient)
-			// ccnt = 1
-			// oldclient = clientCount
-			// } else {
-			tmp = clientCount
-			clientCount -= oldclient
-			oldclient = tmp
-			// }
-
-			scnt++
-			// if serverCount < oldserver {
-			// 	serverCount += (math.MaxUint64 - oldserver)
-			// 	scnt = 1
-			// 	oldserver = serverCount
-			// } else {
-			tmp = serverCount
-			serverCount -= oldserver
-			oldserver = tmp
-			// }
-
-			cspeed, sspeed := float64(clientCount)/basef, float64(serverCount)/basef
-			cavg, savg := float64(oldclient)/float64(ccnt)/basef, float64(oldserver)/float64(scnt)/basef
-			fmt.Printf("\r %9d\t%9.2f\t%9.2f\t%9d\t%9.2f\t%9.2f       ", oldclient, cavg, cspeed, oldserver, savg, sspeed)
+			cspeed, sspeed := float64(cdiff)/basef, float64(sdiff)/basef
+			cavg, savg := float64(cold)/float64(ccnt)/basef, float64(sold)/float64(scnt)/basef
+			fmt.Printf("\r %9d\t%9.2f\t%9.2f\t%9d\t%9.2f\t%9.2f    ", cold, cavg, cspeed, sold, savg, sspeed)
 		}
 	}
+}
+
+func calcDiff(addr, cnt, old *uint64) (cdiff uint64) {
+	var tmp uint64
+START:
+	cdiff = atomic.LoadUint64(addr)
+	if cdiff == *old {
+		cdiff = 0
+		return
+	}
+
+	if cdiff < *old { // 说明发生了清零
+		tmp = cdiff
+		cdiff += (math.MaxUint64 - *old)
+		if !atomic.CompareAndSwapUint64(&bytesFromClient, tmp, cdiff) {
+			goto START
+		}
+		*cnt = 0 // 历史次数清零
+		*old = cdiff
+	} else {
+		tmp = cdiff
+		cdiff -= *old
+		*old = tmp
+	}
+	*cnt++
+	return
 }
