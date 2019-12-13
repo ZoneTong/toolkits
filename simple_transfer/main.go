@@ -6,7 +6,10 @@ import (
 	"log"
 	"math"
 	"net"
+	"os"
+	"os/signal"
 	"sync/atomic"
+	"syscall"
 	"time"
 )
 
@@ -125,6 +128,8 @@ func printSpeed() {
 	fmt.Printf("client bytes\tavg(%vbits/s)\treal(%vbits/s)\tserver bytes\tavg(%vbits/s)\treal(%vbits/s)\n", danwei, danwei, danwei, danwei)
 	basef := float64(base / BITS)
 
+	sigch := make(chan os.Signal)
+	signal.Notify(sigch, syscall.SIGHUP)
 	ticker := time.NewTicker(time.Second)
 	var sold, cold uint64
 	var ccnt, scnt uint64
@@ -139,6 +144,15 @@ func printSpeed() {
 			cspeed, sspeed := float64(cdiff)/basef, float64(sdiff)/basef
 			cavg, savg := float64(cold)/float64(ccnt)/basef, float64(sold)/float64(scnt)/basef
 			fmt.Printf("\r %9d\t%9.2f\t%9.2f\t%9d\t%9.2f\t%9.2f    ", cold, cavg, cspeed, sold, savg, sspeed)
+
+		case sig := <-sigch:
+			switch sig {
+			case syscall.SIGHUP:
+				atomic.StoreUint64(&bytesFromClient, 0)
+				ccnt, cold = 0, 0
+				atomic.StoreUint64(&bytesFromServer, 0)
+				scnt, sold = 0, 0
+			}
 		}
 	}
 }
@@ -152,7 +166,7 @@ START:
 		return
 	}
 
-	if cdiff < *old { // 说明发生了清零
+	if cdiff < *old { // 说明变量*addr发生了置位
 		tmp = cdiff
 		cdiff += (math.MaxUint64 - *old)
 		if !atomic.CompareAndSwapUint64(&bytesFromClient, tmp, cdiff) {
