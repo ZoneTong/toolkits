@@ -2,16 +2,16 @@
 
 工具集， 包含按模板解析，及按模板生成
 
-| 名称           | 作用       | 备注                                               |
-| -------------- | ---------- | -------------------------------------------------- |
-| http_server    | http服务   | 1. 接收任意http请求打印以调试;                     |
-|                |            | 2. 将本地文件系统映射为/fs下的url                  |
-|                |            | 3. 匀速下载                                        |
-| echo_server    | 回声服务   | 接收tcp或udp数据, 立即返回相同或倒置或翻倍的字符串 |
-| wr_client      | 写读客户端 | 配合翻倍服务,可测试实际读写tcp/udp的最大带宽       |
-| uniform_client | 匀速客户端 | 匀速推送,可用echo_server配合接收                   |
-| multiple       | 读写分身器 | 将reader/writer分身,可用于广播协议/去重            |
-| transfer       | 网络包转发 | udp包转发程序                                      |
+| 名称            | 作用       | 备注                                               |
+| --------------- | ---------- | -------------------------------------------------- |
+| http_server     | http服务   | 1. 接收任意http请求打印以调试;                     |
+|                 |            | 2. 将本地文件系统映射为/fs下的url                  |
+|                 |            | 3. 匀速下载                                        |
+| echo_server     | 回声服务   | 接收tcp或udp数据, 立即返回相同或倒置或翻倍的字符串 |
+| wr_client       | 写读客户端 | 配合翻倍服务,可测试实际读写tcp/udp的最大带宽       |
+| uniform_client  | 匀速客户端 | 匀速推送,可用echo_server配合接收                   |
+| multiple        | 读写分身器 | 将reader/writer分身,可用于广播协议/去重            |
+| simple_transfer | 网络包转发 | 网络包转发程序,并计算实时速度                      |
 
 ## 使用示例
 
@@ -42,10 +42,10 @@
 cd multiple/example/stdin_stdout && echo '12345' |go run .
 ```
 
-### transfer
+### simple_transfer
 
 监听本机端口10555,并转发给58.222.55.8:10555
 
 ```bash
-./transfer -l :10555 -d 58.222.55.8:10555 > /tmp/transfer.log 2>&1 &
+./simple_transfer -l :10555 -d 58.222.55.8:10555 > /tmp/simple_transfer.log 2>&1 &
 ```

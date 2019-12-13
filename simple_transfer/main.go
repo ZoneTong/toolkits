@@ -4,7 +4,6 @@ import (
 	"flag"
 	"fmt"
 	"log"
-	"math"
 	"net"
 	"sync/atomic"
 	"time"
@@ -17,7 +16,7 @@ var (
 	network    = flag.String("net", "udp", "network")
 	packetsize = flag.Int("size", 10240, "packet size")
 	print      = flag.Bool("v", false, "print")
-	uint       = flag.String("uint", "k", "bits uint: m,k,b ")
+	unit       = flag.String("unit", "k", "bits unit: m,k,b ")
 
 	bytesFromClient uint64
 	bytesFromServer uint64
@@ -112,8 +111,22 @@ func main() {
 }
 
 func printSpeed() {
+	base := B
+	danwei := ""
+	switch *unit {
+	case "k":
+		base = K
+		danwei = "K"
+	case "m":
+		base = M
+		danwei = "M"
+	}
+	fmt.Printf("client bytes\tavg(%vbits/s)\treal(%vbits/s)\tserver bytes\tavg(%vbits/s)\treal(%vbits/s)\n", danwei, danwei, danwei, danwei)
+	basef := float64(base / BITS)
+
 	ticker := time.NewTicker(time.Second)
-	var oldserver, oldclient uint64
+	var oldserver, oldclient, tmp uint64
+	var ccnt, scnt uint64
 	for {
 		select {
 		case <-ticker.C:
@@ -122,35 +135,31 @@ func printSpeed() {
 				continue
 			}
 
-			tmp := clientCount
-			if clientCount < oldclient {
-				clientCount += (math.MaxUint64 - oldclient)
-			} else {
-				clientCount -= oldclient
-			}
+			ccnt++
+			// if clientCount < oldclient {
+			// clientCount += (math.MaxUint64 - oldclient)
+			// ccnt = 1
+			// oldclient = clientCount
+			// } else {
+			tmp = clientCount
+			clientCount -= oldclient
 			oldclient = tmp
+			// }
 
+			scnt++
+			// if serverCount < oldserver {
+			// 	serverCount += (math.MaxUint64 - oldserver)
+			// 	scnt = 1
+			// 	oldserver = serverCount
+			// } else {
 			tmp = serverCount
-			if serverCount < oldserver {
-				serverCount += (math.MaxUint64 - oldserver)
-			} else {
-				serverCount -= oldserver
-			}
+			serverCount -= oldserver
 			oldserver = tmp
+			// }
 
-			base := B
-			danwei := ""
-			switch *uint {
-			case "k":
-				base = K
-				danwei = "K"
-			case "m":
-				base = M
-				danwei = "M"
-			}
-
-			sspeed, cspeed := float64(serverCount)/float64(base), float64(clientCount)/float64(base)
-			fmt.Printf("\r client %v speed: %9.2f %vbit/s, server %v speed: %9.2f %vbit/s         ", oldclient, cspeed*BITS, danwei, oldserver, sspeed*BITS, danwei)
+			cspeed, sspeed := float64(clientCount)/basef, float64(serverCount)/basef
+			cavg, savg := float64(oldclient)/float64(ccnt)/basef, float64(oldserver)/float64(scnt)/basef
+			fmt.Printf("\r %9d\t%9.2f\t%9.2f\t%9d\t%9.2f\t%9.2f       ", oldclient, cavg, cspeed, oldserver, savg, sspeed)
 		}
 	}
 }
