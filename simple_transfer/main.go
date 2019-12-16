@@ -17,7 +17,7 @@ var (
 	listen = flag.String("l", ":19999", "listen")
 	dst    = flag.String("d", "127.0.0.1:9999", "destination address")
 	// src        = flag.String("s", "192.168.0.109:10555", "source address")
-	network    = flag.String("net", "udp", "network")
+	network    = flag.String("net", "udp", "network: udp/unixgram/ip")
 	packetsize = flag.Int("size", 10240, "packet size")
 	print      = flag.Bool("v", false, "print")
 	unit       = flag.String("unit", "k", "bits unit: m,k,b ")

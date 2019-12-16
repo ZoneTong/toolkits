@@ -5,6 +5,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"net"
@@ -22,13 +23,15 @@ import (
 const (
 	FS_PREFIX     = "/fs"
 	STABLE_PREFIX = "/us" // uniform speed
+	UPLOAD_PREFIX = "/up"
 	MB            = 1 << 20
 )
 
 var (
-	server   *http.Server
-	listener net.Listener
-	rootpath = flag.String("root", "/", "filesystem root path")
+	server     *http.Server
+	listener   net.Listener
+	rootpath   = flag.String("root", ".", "filesystem root path")
+	uploadpath = UPLOAD_PREFIX
 )
 
 /** Descrption: 测试源端口与目的端口是否一致
@@ -40,6 +43,7 @@ func main() {
 	graceful := flag.Bool("update", false, "graceful update")
 	flag.Parse()
 
+	uploadpath = filepath.Join(*rootpath, UPLOAD_PREFIX)
 	var err error
 	if *graceful {
 		f := os.NewFile(3, "")
@@ -80,6 +84,11 @@ func myHandle(response http.ResponseWriter, request *http.Request) {
 		fmt.Printf("cookies: %v\n", request.Cookies())
 	}
 
+	if strings.HasPrefix(request.URL.Path, UPLOAD_PREFIX) {
+		uploadfile(response, request)
+		return
+	}
+
 	buf, _ := ioutil.ReadAll(request.Body)
 	if len(buf) > 0 {
 		fmt.Printf("body(length: %v):\n%v\n", len(buf), string(buf))
@@ -101,7 +110,8 @@ func filesystem(response http.ResponseWriter, request *http.Request) {
 	path = filepath.Join(*rootpath, path)
 	f, err := os.Open(path)
 	if err != nil {
-		fmt.Println(err)
+		response.WriteHeader(500)
+		response.Write([]byte(err.Error()))
 		return
 	}
 	defer f.Close()
@@ -244,4 +254,30 @@ func reload() error {
 	// put socket FD at the first entry
 	cmd.ExtraFiles = []*os.File{f}
 	return cmd.Start()
+}
+
+func uploadfile(response http.ResponseWriter, request *http.Request) {
+	path := request.URL.Path[len(FS_PREFIX):]
+	if _, err := os.Stat(uploadpath); os.IsNotExist(err) {
+		err = os.Mkdir(uploadpath, os.ModePerm)
+		if err != nil {
+			response.WriteHeader(500)
+			response.Write([]byte(err.Error()))
+		}
+	}
+	path = filepath.Join(uploadpath, path)
+	f, err := os.Create(path)
+	if err != nil {
+		response.WriteHeader(500)
+		response.Write([]byte(err.Error()))
+		return
+	}
+	defer f.Close()
+	_, err = io.Copy(f, request.Body)
+	if err != nil {
+		response.WriteHeader(500)
+		response.Write([]byte(err.Error()))
+		return
+	}
+	response.Write([]byte("ok"))
 }
