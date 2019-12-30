@@ -4,7 +4,7 @@ import (
 	"io"
 	"sync"
 
-	"github.com/ZoneTong/toolkits/errlog"
+	"github.com/zonetong/toolkits/errlog"
 )
 
 const (

@@ -6,8 +6,8 @@ import (
 	"os"
 	"sync"
 
-	"github.com/ZoneTong/toolkits/errlog"
-	"github.com/ZoneTong/toolkits/multiple"
+	"github.com/zonetong/toolkits/errlog"
+	"github.com/zonetong/toolkits/multiple"
 )
 
 // go run main.go <  in.txt > out.txt

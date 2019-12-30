@@ -25,6 +25,7 @@ const (
 	STABLE_PREFIX = "/us" // uniform speed
 	UPLOAD_PREFIX = "/up"
 	MB            = 1 << 20
+	INIT_SPEED    = 10 * MB
 )
 
 var (
@@ -32,13 +33,31 @@ var (
 	listener   net.Listener
 	rootpath   = flag.String("root", ".", "filesystem root path")
 	uploadpath = UPLOAD_PREFIX
+
+	init_speed = INIT_SPEED
 )
+
+func init() {
+	total, free, err := GetSysMem()
+	if err != nil {
+		panic("init sys mem" + err.Error())
+	}
+	tmp := total / 1000
+	if tmp < INIT_SPEED {
+		tmp = total / 100
+		if tmp < INIT_SPEED {
+			tmp = free
+		}
+	}
+	init_speed = int(tmp / 1024 * 1024)
+}
 
 func main() {
 	port := flag.Int("p", 9999, "port")
 	graceful := flag.Bool("update", false, "graceful update")
 	flag.Parse()
-	log.SetFlags(log.LstdFlags | log.Lshortfile)
+	// log.SetFlags(log.LstdFlags | log.Lshortfile)
+	log.Println("uniform download default speed", init_speed/1024/1024, "MBps")
 
 	uploadpath = filepath.Join(*rootpath, UPLOAD_PREFIX)
 	var err error
@@ -137,10 +156,10 @@ func StableSpeedWrite(response http.ResponseWriter, request *http.Request) {
 	}
 
 	speed, _ := strconv.ParseFloat(querys.Get("speed"), 0)
-	if speed == 0 {
-		speed = 10
-	}
 	block_size := int(speed * MB)
+	if block_size == 0 {
+		block_size = init_speed
+	}
 	slient := querys.Get("silent") == "true"
 	nocycle := querys.Get("cycle") != "true"
 
