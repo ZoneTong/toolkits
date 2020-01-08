@@ -32,9 +32,13 @@ var (
 	server     *http.Server
 	listener   net.Listener
 	rootpath   = flag.String("root", ".", "filesystem root path")
+	verbose    = flag.Bool("v", false, "verbose print")
+	version    = flag.Bool("version", false, "only print version")
 	uploadpath = UPLOAD_PREFIX
 
 	init_speed = INIT_SPEED
+
+	VERSION = "1.0.0"
 )
 
 func init() {
@@ -52,10 +56,20 @@ func init() {
 	init_speed = int(tmp / 1024 * 1024)
 }
 
+func printVersion() {
+	fmt.Println("http_server", VERSION)
+}
+
 func main() {
 	port := flag.Int("p", 9999, "port")
 	graceful := flag.Bool("update", false, "graceful update")
 	flag.Parse()
+
+	if *version {
+		printVersion()
+		return
+	}
+
 	// log.SetFlags(log.LstdFlags | log.Lshortfile)
 	log.Println("uniform download default speed", init_speed/1024/1024, "MBps")
 
@@ -137,7 +151,6 @@ func filesystem(response http.ResponseWriter, request *http.Request) {
 func StableSpeedWrite(response http.ResponseWriter, request *http.Request) {
 	var path = request.URL.Path[len(STABLE_PREFIX):]
 	path = filepath.Join(*rootpath, path)
-	// buf, err := ioutil.ReadFile(path)
 	file, err := os.Open(path)
 	if err != nil {
 		log.Println(err)
@@ -174,25 +187,27 @@ func StableSpeedWrite(response http.ResponseWriter, request *http.Request) {
 	// report
 	done := make(chan bool)
 	defer func() {
-		done <- true
+		close(done)
 	}()
-	go func() {
-		rtikcer := time.NewTicker(report_interval)
-		for {
-			select {
-			case <-done:
-				return
+	if *verbose {
+		go func() {
+			rtikcer := time.NewTicker(report_interval)
+			for {
+				select {
+				case <-done:
+					return
 
-			case <-rtikcer.C:
-				if sent == 0 || slient {
-					continue
+				case <-rtikcer.C:
+					if sent == 0 || slient {
+						continue
+					}
+
+					dur := time.Since(start)
+					log.Printf("avg speed: %.3fMBps, dur: %v\n", float64(sent)/(float64(dur.Nanoseconds())/1000), dur)
 				}
-
-				dur := time.Since(start)
-				log.Printf("avg speed: %.3fMBps, dur: %v\n", float64(sent)/(float64(dur.Nanoseconds())/1000), dur)
 			}
-		}
-	}()
+		}()
+	}
 
 	// sent
 	var block = make([]byte, block_size)
